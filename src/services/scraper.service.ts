@@ -143,9 +143,9 @@ export async function scrapeGoogleMaps(
       
       try {
         console.log(`\n${indexStr} Navigating to details...`);
-        // Standard navigation settings with a healthy 30 seconds limit to allow natural SPA loaders
-        await page.goto(link, { waitUntil: 'domcontentloaded', timeout: 30000 });
-        await page.waitForSelector('h1.DUwDvf', { timeout: 10000 }).catch(() => {});
+        // Robust navigation settings with a 45 seconds limit to handle CPU throttling on Render
+        await page.goto(link, { waitUntil: 'domcontentloaded', timeout: 45000 });
+        await page.waitForSelector('h1.DUwDvf', { timeout: 15000 }).catch(() => {});
 
         // Extract Details
         const result = await page.evaluate(() => {
