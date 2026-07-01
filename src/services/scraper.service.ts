@@ -62,6 +62,26 @@ export async function scrapeGoogleMaps(
     await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
     await page.setViewport({ width: 1280, height: 800 });
 
+    // Enable request interception to optimize performance on CPU-limited Render servers
+    await page.setRequestInterception(true);
+    page.on('request', (req) => {
+      const resourceType = req.resourceType();
+      const url = req.url();
+      
+      if (
+        ['image', 'stylesheet', 'font', 'media'].includes(resourceType) ||
+        url.includes('google-analytics.com') ||
+        url.includes('analytics') ||
+        url.includes('maps/vt') || // Abort vector map tiles (saves massive bandwidth & CPU)
+        url.includes('/vt/') ||
+        url.includes('fonts.googleapis.com')
+      ) {
+        req.abort();
+      } else {
+        req.continue();
+      }
+    });
+
     const query = `${keyword} in ${location}`;
     const searchUrl = `https://www.google.com/maps/search/${encodeURIComponent(query)}`;
     console.log(`[🌐 Browser] Navigating to Google Maps Search URL...`);
@@ -124,8 +144,9 @@ export async function scrapeGoogleMaps(
       
       try {
         console.log(`\n${indexStr} Navigating to details...`);
-        await page.goto(link, { waitUntil: 'domcontentloaded', timeout: 30000 });
-        await page.waitForSelector('h1.DUwDvf', { timeout: 8000 }).catch(() => {});
+        // With request interception active, loading is extremely lightweight and fast
+        await page.goto(link, { waitUntil: 'domcontentloaded', timeout: 15000 });
+        await page.waitForSelector('h1.DUwDvf', { timeout: 6000 }).catch(() => {});
 
         // Extract Details
         const result = await page.evaluate(() => {
