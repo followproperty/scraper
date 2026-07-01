@@ -71,19 +71,42 @@ export async function handleScrapeLoopRequest(req: Request, res: Response): Prom
     return;
   }
 
-  // Load project configuration (source of truth)
   const configPath = path.resolve(__dirname, '../config/project_config.json');
-  if (!fs.existsSync(configPath)) {
-    res.status(500).json({
-      status: 'error',
-      message: `Config file not found at ${configPath}`
-    });
-    return;
-  }
 
   try {
-    const configContent = fs.readFileSync(configPath, 'utf-8');
-    const config: IProjectConfig = JSON.parse(configContent);
+    let config: IProjectConfig;
+    const body = req.body;
+
+    // Check if custom config parameters are passed directly in the HTTP POST request body
+    if (
+      body &&
+      typeof body.projectName === 'string' && body.projectName.trim() &&
+      typeof body.collectionName === 'string' && body.collectionName.trim() &&
+      Array.isArray(body.cities) && body.cities.length > 0 &&
+      Array.isArray(body.niches) && body.niches.length > 0
+    ) {
+      console.log('Controller: Loading dynamic configuration parameters directly from API request body...');
+      config = {
+        projectName: body.projectName.trim(),
+        collectionName: body.collectionName.trim(),
+        targetStates: Array.isArray(body.targetStates) ? body.targetStates : [],
+        cities: body.cities.map((c: any) => String(c).trim()),
+        niches: body.niches.map((n: any) => String(n).trim()),
+        maxDailyLeads: typeof body.maxDailyLeads === 'number' ? body.maxDailyLeads : 300
+      };
+    } else {
+      // Fallback: load default configuration from project_config.json file
+      if (!fs.existsSync(configPath)) {
+        res.status(500).json({
+          status: 'error',
+          message: `Default config file not found at ${configPath} and no valid body parameters provided.`
+        });
+        return;
+      }
+      console.log('Controller: Loading default configuration from project_config.json file...');
+      const configContent = fs.readFileSync(configPath, 'utf-8');
+      config = JSON.parse(configContent);
+    }
 
     // Set lock flag
     isLoopRunning = true;
@@ -101,7 +124,9 @@ export async function handleScrapeLoopRequest(req: Request, res: Response): Prom
       message: 'Automated scraping loop started successfully in the background.',
       targetNewLeads: config.maxDailyLeads,
       projectName: config.projectName,
-      collectionName: config.collectionName
+      collectionName: config.collectionName,
+      cities: config.cities,
+      niches: config.niches
     });
 
   } catch (err: any) {
