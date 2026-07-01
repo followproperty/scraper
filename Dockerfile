@@ -10,8 +10,8 @@ WORKDIR /app
 # Copy package configurations
 COPY package*.json ./
 
-# Install dependencies in clean-install production mode
-RUN npm ci --only=production
+# Install all dependencies (dev dependencies are required for typescript compilation)
+RUN npm ci
 
 # Copy all source files
 COPY . .
