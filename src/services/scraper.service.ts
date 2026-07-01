@@ -46,14 +46,33 @@ export async function scrapeGoogleMaps(
     aiEngineUsed: aiEngine
   };
 
-  // Launch browser with stealth plugin enabled
+  // Launch browser with stealth plugin enabled and high-performance flags
   const browser = await puppeteer.launch({
     headless: true,
     args: [
       '--no-sandbox',
       '--disable-setuid-sandbox',
       '--disable-dev-shm-usage',
-      '--window-size=1280,800'
+      '--window-size=1280,800',
+      '--disable-gpu',
+      '--disable-extensions',
+      '--disable-background-networking',
+      '--disable-background-timer-throttling',
+      '--disable-backgrounding-occluded-windows',
+      '--disable-breakpad',
+      '--disable-client-side-phishing-detection',
+      '--disable-default-apps',
+      '--disable-domain-reliability',
+      '--disable-hang-monitor',
+      '--disable-ipc-flooding-protection',
+      '--disable-popup-blocking',
+      '--disable-prompt-on-repost',
+      '--disable-renderer-backgrounding',
+      '--disable-sync',
+      '--metrics-recording-only',
+      '--no-first-run',
+      '--safebrowsing-disable-auto-update',
+      '--js-flags="--max-opt-level=2"'
     ]
   });
 
@@ -61,26 +80,6 @@ export async function scrapeGoogleMaps(
     const page = await browser.newPage();
     await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
     await page.setViewport({ width: 1280, height: 800 });
-
-    // Enable request interception to optimize performance on CPU-limited Render servers
-    await page.setRequestInterception(true);
-    page.on('request', (req) => {
-      const resourceType = req.resourceType();
-      const url = req.url();
-      
-      if (
-        ['image', 'stylesheet', 'font', 'media'].includes(resourceType) ||
-        url.includes('google-analytics.com') ||
-        url.includes('analytics') ||
-        url.includes('maps/vt') || // Abort vector map tiles (saves massive bandwidth & CPU)
-        url.includes('/vt/') ||
-        url.includes('fonts.googleapis.com')
-      ) {
-        req.abort();
-      } else {
-        req.continue();
-      }
-    });
 
     const query = `${keyword} in ${location}`;
     const searchUrl = `https://www.google.com/maps/search/${encodeURIComponent(query)}`;
@@ -144,9 +143,9 @@ export async function scrapeGoogleMaps(
       
       try {
         console.log(`\n${indexStr} Navigating to details...`);
-        // With request interception active, loading is extremely lightweight and fast
-        await page.goto(link, { waitUntil: 'domcontentloaded', timeout: 15000 });
-        await page.waitForSelector('h1.DUwDvf', { timeout: 6000 }).catch(() => {});
+        // Standard navigation settings with a healthy 30 seconds limit to allow natural SPA loaders
+        await page.goto(link, { waitUntil: 'domcontentloaded', timeout: 30000 });
+        await page.waitForSelector('h1.DUwDvf', { timeout: 10000 }).catch(() => {});
 
         // Extract Details
         const result = await page.evaluate(() => {
