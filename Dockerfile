@@ -1,9 +1,6 @@
 # Use the official Puppeteer pre-configured Node/Chromium environment
 FROM ghcr.io/puppeteer/puppeteer:21.5.0
 
-# Set environment to production
-ENV NODE_ENV=production
-
 # Set working directory inside the container
 WORKDIR /app
 
@@ -18,6 +15,9 @@ COPY . .
 
 # Build the TypeScript project to JavaScript inside the dist/ folder
 RUN npm run build
+
+# Set environment to production after compilation is complete
+ENV NODE_ENV=production
 
 # Expose Express server port (Render automatically forwards traffic to this port)
 EXPOSE 3000
