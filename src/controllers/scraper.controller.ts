@@ -16,7 +16,26 @@ interface IProjectConfig {
 // Global flag to prevent concurrent loop runs
 let isLoopRunning = false;
 
+// API key authentication setup (Fall back to a default secret if not defined in environment variables)
+const SCRAPER_API_KEY = process.env.SCRAPER_API_KEY || 'fp_scraper_secret_secure_key';
+
+/**
+ * Validates the request headers or query params for security.
+ */
+function isAuthorized(req: Request): boolean {
+  const incomingKey = req.headers['x-api-key'] || req.query.apiKey;
+  return incomingKey === SCRAPER_API_KEY;
+}
+
 export async function handleScrapeRequest(req: Request, res: Response): Promise<void> {
+  if (!isAuthorized(req)) {
+    res.status(401).json({
+      error: 'Unauthorized',
+      message: 'Access Denied: Invalid or missing "x-api-key" header.'
+    });
+    return;
+  }
+
   try {
     const { keyword, location, projectTargeted, collectionName } = req.body;
 
@@ -63,6 +82,14 @@ export async function handleScrapeRequest(req: Request, res: Response): Promise<
  * Returns immediate HTTP response so the client connection doesn't timeout.
  */
 export async function handleScrapeLoopRequest(req: Request, res: Response): Promise<void> {
+  if (!isAuthorized(req)) {
+    res.status(401).json({
+      status: 'error',
+      message: 'Access Denied: Invalid or missing "x-api-key" header.'
+    });
+    return;
+  }
+
   if (isLoopRunning) {
     res.status(409).json({
       status: 'error',
@@ -71,6 +98,7 @@ export async function handleScrapeLoopRequest(req: Request, res: Response): Prom
     return;
   }
 
+  // Load project configuration (source of truth)
   const configPath = path.resolve(__dirname, '../config/project_config.json');
 
   try {
