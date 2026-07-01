@@ -6,26 +6,39 @@ import { scrapeWebsiteContacts, calculateHNIScore } from './enrichment.service';
 // Apply Stealth Plugin to puppeteer-extra
 puppeteer.use(StealthPlugin());
 
-const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
-const randomDelay = () => delay(Math.floor(Math.random() * 2000) + 1500); // 1.5 to 3.5 seconds
-
-export interface IScrapeResult {
+/**
+ * Interface representing the scrape results counts
+ */
+interface IScrapeResult {
   processedCount: number;
   savedCount: number;
   phoneSkipCount: number;
   duplicateSkipCount: number;
   emailsFoundCount: number;
   premiumHNICount: number;
-  aiEngineUsed: 'GROQ' | 'GEMINI' | 'LOCAL_RULES';
+  aiEngineUsed: string;
 }
 
+/**
+ * Delay helper
+ */
+const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/**
+ * Random delay to mimic human behavior
+ */
+const randomDelay = () => delay(Math.floor(Math.random() * 3000) + 2000);
+
+/**
+ * Main scraper task execution
+ */
 export async function scrapeGoogleMaps(
   keyword: string,
   location: string,
   projectTargeted: string,
   collectionName: string
 ): Promise<IScrapeResult> {
-  const aiEngine: 'GROQ' | 'GEMINI' | 'LOCAL_RULES' = process.env.GROQ_API_KEY
+  const aiEngine = process.env.GROQ_API_KEY
     ? 'GROQ'
     : process.env.GEMINI_API_KEY
     ? 'GEMINI'
@@ -124,27 +137,57 @@ export async function scrapeGoogleMaps(
       scrollAttempts++;
     }
 
-    // Extract links
-    const placeLinks = await page.evaluate(() => {
+    // Extract links and names directly from the search results side panel
+    const parsedPlaces = await page.evaluate(() => {
       const elements = Array.from(document.querySelectorAll('a[href*="/maps/place/"]'));
-      return elements.map((el) => (el as HTMLAnchorElement).href);
+      return elements.map((el) => {
+        const href = (el as HTMLAnchorElement).href;
+        
+        // Find clean name from the maps search result title element
+        const parentResult = el.closest('div[class*="Nv2y1d"], div[class*="Ua34Hg"], div[class*="jVSTN"]') || el;
+        const titleEl = parentResult.querySelector('.qBF1Pd') || el;
+        const name = titleEl.textContent?.trim() || '';
+        
+        return { name, link: href };
+      });
     });
 
-    const uniqueLinks = Array.from(new Set(placeLinks));
-    console.log(`[🌐 Browser] Found ${uniqueLinks.length} unique place listings to process.`);
+    // Deduplicate lists by link
+    const uniqueMap = new Map<string, string>();
+    for (const item of parsedPlaces) {
+      if (item.link && item.name) {
+        uniqueMap.set(item.link, item.name);
+      }
+    }
+    const uniquePlaces = Array.from(uniqueMap.entries()).map(([link, name]) => ({ link, name }));
+
+    console.log(`[🌐 Browser] Found ${uniquePlaces.length} unique place listings to process.`);
     console.log('------------------------------------------------------------');
 
     const DynamicLeadModel = getDynamicLeadModel(collectionName);
 
-    // Process each link
-    for (let i = 0; i < uniqueLinks.length; i++) {
-      const link = uniqueLinks[i];
-      const indexStr = `[${i + 1}/${uniqueLinks.length}]`;
-      
+    // Process each place
+    for (let i = 0; i < uniquePlaces.length; i++) {
+      const place = uniquePlaces[i];
+      const indexStr = `[${i + 1}/${uniquePlaces.length}]`;
+
+      // 1. Early duplicate check by Name & City (Skips page loading completely in 0.1 seconds!)
+      if (place.name) {
+        const existsByName = await DynamicLeadModel.exists({
+          name: place.name,
+          city: location
+        });
+        if (existsByName) {
+          console.log(`   ⏭️  Skipped instantly: Lead "${place.name}" already exists in database (Checked by Name)`);
+          stats.duplicateSkipCount++;
+          continue;
+        }
+      }
+
       try {
         console.log(`\n${indexStr} Navigating to details...`);
         // Robust navigation settings with a 45 seconds limit to handle CPU throttling on Render
-        await page.goto(link, { waitUntil: 'domcontentloaded', timeout: 45000 });
+        await page.goto(place.link, { waitUntil: 'domcontentloaded', timeout: 45000 });
         await page.waitForSelector('h1.DUwDvf', { timeout: 15000 }).catch(() => {});
 
         // Extract Details
@@ -196,18 +239,19 @@ export async function scrapeGoogleMaps(
 
         stats.processedCount++;
 
-        // 1. Skip if no phone number
+        // 2. Skip if no phone number
         if (!result.phone) {
           console.log(`   ❌ Skipped: No phone number listed for "${result.name}"`);
           stats.phoneSkipCount++;
           continue;
         }
 
-        // 2. Skip if already exists in target collection (Avoid duplicate API/DB execution)
         const phoneClean = result.phone;
-        const exists = await DynamicLeadModel.exists({ phone: phoneClean });
-        if (exists) {
-          console.log(`   ⏭️  Skipped: Lead with phone ${phoneClean} ("${result.name}") already exists in "${collectionName}"`);
+
+        // 3. Double check by Phone to ensure absolute safety
+        const existsByPhone = await DynamicLeadModel.exists({ phone: phoneClean });
+        if (existsByPhone) {
+          console.log(`   ⏭️  Skipped: Lead with phone ${phoneClean} ("${result.name}") already exists in database`);
           stats.duplicateSkipCount++;
           continue;
         }
@@ -217,7 +261,7 @@ export async function scrapeGoogleMaps(
         // Apply delay
         await randomDelay();
 
-        // 3. Web Contacts Extraction (Emails & Phone Numbers)
+        // 4. Web Contacts Extraction (Emails & Phone Numbers)
         let emailContacts: string[] = [];
         let webPhones: string[] = [];
         if (result.website) {
@@ -236,7 +280,7 @@ export async function scrapeGoogleMaps(
           console.log(`   🔄 Direct Mobile found on website! Setting primaryPhone = "${primaryPhone}" (direct) and secondaryPhone = "${secondaryPhone}" (reception)`);
         }
 
-        // 4. HNI Score Calculation
+        // 5. HNI Score Calculation
         const scoring = await calculateHNIScore(result);
         if (scoring.isPremium) {
           stats.premiumHNICount++;
@@ -279,7 +323,7 @@ export async function scrapeGoogleMaps(
         await DynamicLeadModel.findOneAndUpdate(
           { phone: primaryPhone },
           { $set: targetLeadData },
-          { upsert: true, new: true }
+          { upsert: true, returnDocument: 'after' }
         );
 
         console.log(`   ✅ Saved Lead successfully to CRM Cluster.`);
