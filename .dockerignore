@@ -1,0 +1,12 @@
+node_modules
+dist
+.env
+.git
+.gitignore
+README.md
+C:\Users\badal\.gemini\*
+C:/Users/badal/.gemini/*
+/C:/Users/badal/.gemini/*
+C:/**
+.agents
+*.log

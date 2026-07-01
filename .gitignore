@@ -1,0 +1,11 @@
+node_modules/
+dist/
+.env
+*.log
+.DS_Store
+C:/Users/badal/.gemini/*
+C:\Users\badal\.gemini\*
+.agents
+/C:/Users/badal/.gemini/*
+C:/**
+.git/

@@ -1,0 +1,14 @@
+{
+  "projectName": "Vrindavan Plots",
+  "collectionName": "leads_vrindavan",
+  "targetStates": ["Gujarat", "Uttar Pradesh", "Delhi", "Haryana", "Rajasthan"],
+  "cities": ["Ahmedabad", "Surat", "Vadodara", "Rajkot", "Gandhinagar", "Mathura", "Vrindavan", "Noida", "Ghaziabad"],
+  "niches": [
+    "doctor clinic",
+    "hospital",
+    "advocate office",
+    "chartered accountant ca",
+    "luxury hotel"
+  ],
+  "maxDailyLeads": 300
+}
