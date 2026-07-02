@@ -59,7 +59,7 @@ export async function scrapeGoogleMaps(
     aiEngineUsed: aiEngine
   };
 
-  // Launch browser with stealth plugin enabled and high-performance flags
+  // Launch browser with stealth plugin enabled and memory-efficient parameters
   const browser = await puppeteer.launch({
     headless: true,
     args: [
@@ -85,12 +85,15 @@ export async function scrapeGoogleMaps(
       '--metrics-recording-only',
       '--no-first-run',
       '--safebrowsing-disable-auto-update',
-      '--js-flags="--max-opt-level=2"'
+      '--js-flags="--max-opt-level=2"',
+      '--disable-application-cache',
+      '--disable-cache',
+      '--disk-cache-size=0'
     ]
   });
 
   try {
-    const page = await browser.newPage();
+    let page = await browser.newPage();
     await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
     await page.setViewport({ width: 1280, height: 800 });
 
@@ -166,6 +169,8 @@ export async function scrapeGoogleMaps(
 
     const DynamicLeadModel = getDynamicLeadModel(collectionName);
 
+    let navigationCount = 0;
+
     // Process each place
     for (let i = 0; i < uniquePlaces.length; i++) {
       const place = uniquePlaces[i];
@@ -185,6 +190,18 @@ export async function scrapeGoogleMaps(
       }
 
       try {
+        // Recreate the page context every 5 actual detail navigations
+        // Google Maps SPA causes memory leaks over many consecutive page loads inside the same tab.
+        // Recreating the tab context completely releases the cached heap RAM memory.
+        if (navigationCount > 0 && navigationCount % 5 === 0) {
+          console.log('\n🧹 [Browser] Recreating page tab context to release cached RAM memory...');
+          await page.close().catch(() => {});
+          page = await browser.newPage();
+          await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
+          await page.setViewport({ width: 1280, height: 800 });
+        }
+        navigationCount++;
+
         console.log(`\n${indexStr} Navigating to details...`);
         // Robust navigation settings with a 45 seconds limit to handle CPU throttling on Render
         await page.goto(place.link, { waitUntil: 'domcontentloaded', timeout: 45000 });
