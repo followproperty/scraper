@@ -85,10 +85,12 @@ export async function scrapeGoogleMaps(
       '--metrics-recording-only',
       '--no-first-run',
       '--safebrowsing-disable-auto-update',
-      '--js-flags="--max-opt-level=2"',
+      '--js-flags="--max-opt-level=2 --max-old-space-size=150"',
       '--disable-application-cache',
       '--disable-cache',
-      '--disk-cache-size=0'
+      '--disk-cache-size=0',
+      '--single-process',
+      '--no-zygote'
     ]
   });
 
