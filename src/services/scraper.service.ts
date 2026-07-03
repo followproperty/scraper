@@ -93,7 +93,6 @@ export async function scrapeGoogleMaps(
       '--disable-application-cache',
       '--disable-cache',
       '--disk-cache-size=0',
-      '--single-process',
       '--no-zygote'
     ]
   });
@@ -103,16 +102,20 @@ export async function scrapeGoogleMaps(
     await p.setViewport({ width: 1280, height: 800 });
     await p.setRequestInterception(true);
     p.on('request', (req: any) => {
-      const type = req.resourceType();
-      const url = req.url();
-      if (
-        ['image', 'font', 'media'].includes(type) ||
-        url.includes('google-analytics') ||
-        url.includes('googletagmanager')
-      ) {
-        req.abort();
-      } else {
-        req.continue();
+      try {
+        const type = req.resourceType();
+        const url = req.url();
+        if (
+          ['image', 'font', 'media'].includes(type) ||
+          url.includes('google-analytics') ||
+          url.includes('googletagmanager')
+        ) {
+          req.abort().catch(() => {});
+        } else {
+          req.continue().catch(() => {});
+        }
+      } catch (err) {
+        // Safe fallback
       }
     });
   };
@@ -219,16 +222,16 @@ export async function scrapeGoogleMaps(
       }
 
       try {
+        navigationCount++;
         // Recreate the page context every 5 actual detail navigations
         // Google Maps SPA causes memory leaks over many consecutive page loads inside the same tab.
         // Recreating the tab context completely releases the cached heap RAM memory.
-        if (navigationCount > 0 && navigationCount % 5 === 0) {
+        if (navigationCount > 1 && navigationCount % 5 === 1) {
           console.log('\n🧹 [Browser] Recreating page tab context to release cached RAM memory...');
           await page.close().catch(() => {});
           page = await browser.newPage();
           await setupPage(page);
         }
-        navigationCount++;
 
         console.log(`\n${indexStr} Navigating to details...`);
         // Robust navigation settings with a 45 seconds limit to handle CPU throttling on Render
