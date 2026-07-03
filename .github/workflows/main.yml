@@ -2,9 +2,9 @@ name: Daily Leads Scraper
 
 on:
   schedule:
-    # Runs at 11:00 AM IST daily (IST is UTC +5:30)
-    # 11:00 AM IST = 05:30 AM UTC
-    - cron: '30 5 * * *'
+    # Runs at 02:00 AM IST daily (IST is UTC +5:30)
+    # 02:00 AM IST = 08:30 PM UTC
+    - cron: '30 20 * * *'
   workflow_dispatch: # Allows manual trigger anytime from GitHub UI
 
 jobs:
