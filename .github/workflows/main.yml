@@ -1,0 +1,36 @@
+name: Daily Leads Scraper
+
+on:
+  schedule:
+    # Runs at 11:00 AM IST daily (IST is UTC +5:30)
+    # 11:00 AM IST = 05:30 AM UTC
+    - cron: '30 5 * * *'
+  workflow_dispatch: # Allows manual trigger anytime from GitHub UI
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Install Puppeteer System Libraries
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libnss3 libnspr4 libatk-1.0-0 libatk-bridge2.0-0 libcups2 libdrm2 libxkbcommon0 libxcomposite1 libxdamage1 libxrandr2 libgbm1 libasound2 libpangocairo-1.0-0 libpango-1.0-0 libharfbuzz0b || true
+
+      - name: Run Scraper Loop Script
+        env:
+          MONGO_URI: ${{ secrets.MONGO_URI }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+        run: npx ts-node src/scripts/run_scraper.ts
