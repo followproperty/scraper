@@ -36,7 +36,8 @@ export async function scrapeGoogleMaps(
   keyword: string,
   location: string,
   projectTargeted: string,
-  collectionName: string
+  collectionName: string,
+  remainingLeadsNeeded?: number
 ): Promise<IScrapeResult> {
   const aiEngine = process.env.GROQ_API_KEY
     ? 'GROQ'
@@ -47,6 +48,9 @@ export async function scrapeGoogleMaps(
   console.log(`\n[🔍 Scraper] Target: "${keyword}" in "${location}"`);
   console.log(`[🔍 Scraper] Project: "${projectTargeted}" | Database Collection: "${collectionName}"`);
   console.log(`[🔍 Scraper] AI Engine Configured: [${aiEngine}]`);
+  if (remainingLeadsNeeded !== undefined) {
+    console.log(`[🔍 Scraper] Target limit active: Stopping after saving ${remainingLeadsNeeded} more leads`);
+  }
   console.log('------------------------------------------------------------');
 
   const stats: IScrapeResult = {
@@ -94,10 +98,28 @@ export async function scrapeGoogleMaps(
     ]
   });
 
+  const setupPage = async (p: any) => {
+    await p.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
+    await p.setViewport({ width: 1280, height: 800 });
+    await p.setRequestInterception(true);
+    p.on('request', (req: any) => {
+      const type = req.resourceType();
+      const url = req.url();
+      if (
+        ['image', 'font', 'media'].includes(type) ||
+        url.includes('google-analytics') ||
+        url.includes('googletagmanager')
+      ) {
+        req.abort();
+      } else {
+        req.continue();
+      }
+    });
+  };
+
   try {
     let page = await browser.newPage();
-    await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
-    await page.setViewport({ width: 1280, height: 800 });
+    await setupPage(page);
 
     const query = `${keyword} in ${location}`;
     const searchUrl = `https://www.google.com/maps/search/${encodeURIComponent(query)}`;
@@ -175,6 +197,11 @@ export async function scrapeGoogleMaps(
 
     // Process each place
     for (let i = 0; i < uniquePlaces.length; i++) {
+      if (remainingLeadsNeeded !== undefined && stats.savedCount >= remainingLeadsNeeded) {
+        console.log(`\n🎯 [Scraper] Target milestone reached: saved ${stats.savedCount} leads. Stopping scraper early!`);
+        break;
+      }
+
       const place = uniquePlaces[i];
       const indexStr = `[${i + 1}/${uniquePlaces.length}]`;
 
@@ -199,8 +226,7 @@ export async function scrapeGoogleMaps(
           console.log('\n🧹 [Browser] Recreating page tab context to release cached RAM memory...');
           await page.close().catch(() => {});
           page = await browser.newPage();
-          await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
-          await page.setViewport({ width: 1280, height: 800 });
+          await setupPage(page);
         }
         navigationCount++;
 
@@ -348,6 +374,10 @@ export async function scrapeGoogleMaps(
         console.log(`   ✅ Saved Lead successfully to CRM Cluster.`);
         stats.savedCount++;
 
+        if (remainingLeadsNeeded !== undefined && stats.savedCount >= remainingLeadsNeeded) {
+          console.log(`\n🎯 [Scraper] Target milestone reached: saved ${stats.savedCount} leads. Stopping scraper early!`);
+          break;
+        }
       } catch (err: any) {
         console.error(`   ⚠️ Error processing listing: ${err.message}`);
       }

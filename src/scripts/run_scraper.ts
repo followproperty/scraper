@@ -122,7 +122,8 @@ async function main() {
         currentQuery.niche,
         currentQuery.city,
         config.projectName,
-        config.collectionName
+        config.collectionName,
+        Math.max(0, targetNewLeads - totalSavedThisRun)
       );
 
       // Accumulate session stats

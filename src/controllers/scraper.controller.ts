@@ -220,7 +220,8 @@ async function runBackgroundLoop(config: IProjectConfig): Promise<void> {
         currentQuery.niche,
         currentQuery.city,
         config.projectName,
-        config.collectionName
+        config.collectionName,
+        Math.max(0, targetNewLeads - totalSavedThisRun)
       );
 
       totalSavedThisRun += stats.savedCount;
