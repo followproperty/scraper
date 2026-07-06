@@ -23,7 +23,7 @@
     "Sonipat",
     "Panipat"
   ],
- "niches": [
+"niches": [
   "chartered accountant",
   "builder",
   "real estate consultant",
@@ -35,6 +35,8 @@
   "pharmacy",
   "restaurant",
   "mithai shop",
+  "sweet shop",
+  "hotel",
   "luxury hotel"
 ],
   "maxDailyLeads": 500
